@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arundeepto Item Pro - Final V5</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root { --primary: #2c3e50; --accent: #3498db; --danger: #e74c3c; --success: #27ae60; --pending: #f39c12; --purple: #8e44ad; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 15px; }
+        .container { max-width: 450px; margin: auto; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: var(--primary); }
+        .setup-box { background: #f9f9f9; padding: 15px; border-radius: 15px; }
+        input, select { width: 100%; padding: 10px; margin: 5px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
+        button { padding: 12px; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; width: 100%; margin-top: 5px; }
+        
+        .session-card { text-align: center; padding: 20px; border-radius: 15px; margin: 10px 0; transition: 0.5s; }
+        .card-start { background: #d6eaf8; border-left: 8px solid var(--accent); }
+        .card-end { background: #ebdef0; border-left: 8px solid var(--purple); }
+        .card-retake { background: #fdedec; border-left: 8px solid var(--danger); }
+        
+        .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-top: 15px; }
+        #big-roll { font-size: 70px; font-weight: bold; margin: 5px 0; }
+        
+        #meta-info { font-size: 14px; background: #34495e; color: white; padding: 8px; border-radius: 5px; text-align: center; margin-bottom: 10px; }
+        #upcoming-info { font-size: 14px; color: #2980b9; background: #d6eaf8; padding: 8px; border-radius: 5px; margin-bottom: 10px; text-align: center; font-weight: bold; }
+        #capture-area { display: none; margin-top: 20px; padding: 20px; background: white; border: 2px solid #333; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="setup-section">
+        <h2>Item Setup</h2>
+        <div class="setup-box">
+            <input type="text" id="item-topic" placeholder="Topic Name">
+            <div style="display:flex; gap:5px;">
+                <input type="number" id="start-roll" placeholder="Start Roll">
+                <input type="number" id="end-roll" placeholder="End Roll">
+            </div>
+            <label>Batch Size:</label>
+            <input type="number" id="batch-size" value="3">
+            <select id="mode-select">
+                <option value="seq-start">Sequential (Start to End)</option>
+                <option value="seq-end">Sequential (End to Start)</option>
+                <option value="mixed">Mixed (Zig-Zag)</option>
+            </select>
+            <button style="background: var(--primary);" onclick="startSession()">Start Item</button>
+        </div>
+    </div>
+
+    <div id="session-section" style="display: none;">
+        <div id="meta-info"></div>
+        <div id="upcoming-info">Next: ---</div>
+        
+        <div id="main-card" class="session-card card-start">
+            <div id="big-roll">---</div>
+            <div id="current-name" style="font-size: 18px; font-weight: 600;">---</div>
+            <input type="number" id="marks-input" placeholder="Marks">
+            <div class="controls">
+                <button style="background: var(--danger);" onclick="mark('Absent')">ABSENT</button>
+                <button style="background: var(--pending);" onclick="mark('Pending')">PENDING</button>
+                <button style="background: var(--success);" onclick="mark('Present')">PRESENT</button>
+            </div>
+            <button style="background: #7f8c8d; margin-top:10px;" onclick="undo()">⟲ Undo</button>
+        </div>
+        
+        <button style="background: #95a5a6; width: 100%; padding: 10px; margin-top: 10px; border-radius: 8px; border:none; color:white; cursor:pointer;" onclick="finishSession()">Finish Session</button>
+    </div>
+
+    <div id="capture-area">
+        <h2 id="report-title"></h2>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <thead><tr style="background:#eee;"><th>Roll</th><th>Name</th><th>Status</th><th>Marks</th></tr></thead>
+            <tbody id="report-body"></tbody>
+        </table>
+        <button style="background: var(--accent); margin-top: 20px;" onclick="downloadPNG()">📸 Download</button>
+    </div>
+</div>
+
+<script>
+    const students = [{"roll": 1, "name": "MD. KAWSER AZAM"}, {"roll": 2, "name": "S. B. ANURADHA"}, {"roll": 3, "name": "REHNUMA ISLAM"}, {"roll": 4, "name": "MD. ABDUR RAHIM"}, {"roll": 5, "name": "TAHMID UR RAHMAN"}, {"roll": 6, "name": "JANNATUN NAHAR"}, {"roll": 7, "name": "MD. SHOAIB AKHTAR"}, {"roll": 8, "name": "ZUYANA ALIF"}, {"roll": 9, "name": "MD. AL SERAFIC ZIHAD"}, {"roll": 10, "name": "MOST. HAMZA IFFAT NUBAH"}, {"roll": 11, "name": "ROJA ASKARI"}, {"roll": 12, "name": "MST. SIRAJAM MUNIRA"}, {"roll": 13, "name": "RAFID HASAN SIDDIQUI"}, {"roll": 14, "name": "MST. NUSRAT JAHAN NADIA"}, {"roll": 15, "name": "MD. ABDUR ROUF"}, {"roll": 16, "name": "SHAH MD. JUHAYER JARIF"}, {"roll": 17, "name": "SAFA MARIYA WORPA"}, {"roll": 18, "name": "AFIYA MUBASHIRA MAYESHA"}, {"roll": 19, "name": "SIDRATUL MUNTAHA MAHI"}, {"roll": 20, "name": "FAHIM ASHFAK ALIN"}, {"roll": 21, "name": "MD. MAHMUD ALAM"}, {"roll": 22, "name": "MD. ABDULLAH AL RAFI"}, {"roll": 23, "name": "S. M. TAMZID HOSSAIN PRODHAN"}, {"roll": 24, "name": "MAIDA ALAMGIR"}, {"roll": 25, "name": "TURE SINA FAIZA MOMO"}, {"roll": 26, "name": "MST. TONU"}, {"roll": 27, "name": "MST. TASNIA RASHID LISHA"}, {"roll": 28, "name": "MD. NAFIZ AHMMED"}, {"roll": 29, "name": "MD. SAZZAD AHAMED"}, {"roll": 30, "name": "SAMIYA JANNAT"}, {"roll": 31, "name": "MST. JANNATUL SAHIMA HAQUE"}, {"roll": 32, "name": "NAYEEMA SALEHA"}, {"roll": 33, "name": "MD. ALIFUL ISLAM ALIF"}, {"roll": 34, "name": "NAZIA ISMAIL REETU"}, {"roll": 35, "name": "MST. AKHI"}, {"roll": 36, "name": "MST. SINTHIYA AKTHER"}, {"roll": 37, "name": "MST. RAISHA ANJUM"}, {"roll": 38, "name": "FERDOUS HASAN FAHIM"}, {"roll": 39, "name": "ZANNATUL MAWA KHAN"}, {"roll": 40, "name": "TAIN NUR OMI"}, {"roll": 41, "name": "MD. RAFIUR ISLAM"}, {"roll": 42, "name": "MOST. AME KHATUN"}, {"roll": 43, "name": "MST. MOHONA RAHMAN"}, {"roll": 44, "name": "TANIA AKTER"}, {"roll": 45, "name": "SUMAIYA AFRIN FAIZA"}, {"roll": 46, "name": "KAZI KHADIJA ANAM"}, {"roll": 47, "name": "MD. MIZANUR RAHMAN"}, {"roll": 48, "name": "ADITYA CHAKMA"}, {"roll": 49, "name": "GALIB MAHMUD"}, {"roll": 50, "name": "TASNIM RAHI"}, {"roll": 51, "name": "SHEMONTY ISLAM SUSHOMA"}, {"roll": 52, "name": "NAZMUN NAHAR"}, {"roll": 53, "name": "TASNIM ARA SHREYOSEE"}, {"roll": 54, "name": "MD. ABDUR ROKIB AHMED RAK"}, {"roll": 55, "name": "M. A. MOSTAKIM"}, {"roll": 56, "name": "AYSA KHATUN"}, {"roll": 57, "name": "SUPARNA DAS"}, {"roll": 58, "name": "MIDULA MAHJABIN"}, {"roll": 59, "name": "MD. HEMAYETULLAH HIMU"}, {"roll": 60, "name": "MD. S. M. RIFAT SHAH"}, {"roll": 61, "name": "TANJEHE NAWRATI ROWZA"}, {"roll": 62, "name": "UMME SALMA"}, {"roll": 63, "name": "MAISHA KASHFIA ZAMAN"}, {"roll": 64, "name": "SHAOMA SIDDIK AKHI"}, {"roll": 65, "name": "SANCHITA ROY DIYA"}, {"roll": 66, "name": "SHAH MUNAF WASIF SIDDIQUE ANAN"}, {"roll": 67, "name": "MORSALINA NUPUR"}, {"roll": 68, "name": "AYESHA SHIDDIKA"}, {"roll": 69, "name": "TASNIM JAHAN MARIA"}, {"roll": 70, "name": "KABBO PROSAD GUPTA"}, {"roll": 71, "name": "MD. MUNTASIR MAHMUD MUHI"}, {"roll": 72, "name": "TASNIM TABASSUM TISHA"}, {"roll": 73, "name": "MD. TANJIMUL ISLAM"}];
+
+    let session = { topic: '', data: {}, queue: [], retakeQueue: [], history: [], range: '', batchSize: 3, isRetakeMode: false };
+
+    function startSession() {
+        const topic = document.getElementById('item-topic').value;
+        const sR = parseInt(document.getElementById('start-roll').value);
+        const eR = parseInt(document.getElementById('end-roll').value);
+        const size = parseInt(document.getElementById('batch-size').value);
+        const mode = document.getElementById('mode-select').value;
+        
+        if(!topic || !sR || !eR) return alert("All fields required");
+
+        session.batchSize = size;
+        let filtered = students.filter(s => s.roll >= sR && s.roll <= eR);
+        let q = [];
+
+        if(mode === 'seq-start') {
+            q = filtered.map(s => ({...s, source: 'start'}));
+        } else if(mode === 'seq-end') {
+            q = [...filtered].reverse().map(s => ({...s, source: 'end'}));
+        } else {
+            let left = 0, right = filtered.length - 1;
+            let turn = 'start';
+            while(left <= right) {
+                if(turn === 'start') {
+                    for(let i=0; i<size && left <= right; i++) q.push({...filtered[left++], source: 'start'});
+                    turn = 'end';
+                } else {
+                    for(let i=0; i<size && right >= left; i++) q.push({...filtered[right--], source: 'end'});
+                    turn = 'start';
+                }
+            }
+        }
+
+        session.topic = topic;
+        session.queue = q;
+        session.range = `${sR}-${eR}`;
+        session.history = [];
+        session.isRetakeMode = false;
+        
+        document.getElementById('setup-section').style.display = 'none';
+        document.getElementById('session-section').style.display = 'block';
+        document.getElementById('meta-info').innerText = `Range: ${session.range}`;
+        document.getElementById('display-topic').innerText = topic;
+        updateUI();
+    }
+
+    function updateUI() {
+        const mainCard = document.getElementById('main-card');
+        const bigRollEl = document.getElementById('big-roll');
+        
+        if(session.queue.length > 0) {
+            const s = session.queue[0];
+            bigRollEl.innerText = s.roll;
+            document.getElementById('current-name').innerText = s.name;
+            
+            mainCard.className = 'session-card';
+            if(session.isRetakeMode) mainCard.classList.add('card-retake');
+            else if(s.source === 'start') mainCard.classList.add('card-start');
+            else mainCard.classList.add('card-end');
+
+            let nextBatch = session.queue.slice(1, 1 + session.batchSize);
+            let nextRolls = nextBatch.length > 0 ? nextBatch.map(s => s.roll).join(', ') : "None";
+            document.getElementById('upcoming-info').innerText = `Next Batch: ${nextRolls}`;
+
+        } else if(session.retakeQueue.length > 0) {
+            session.isRetakeMode = true;
+            session.queue = [...session.retakeQueue].map(s => ({...s, source: 'retake'}));
+            session.retakeQueue = [];
+            updateUI(); 
+            return;
+        } else {
+            bigRollEl.innerText = "Done";
+            mainCard.className = 'session-card';
+            document.getElementById('current-name').innerText = "Session Complete!";
+            document.getElementById('upcoming-info').innerText = "All Finished!";
+        }
+    }
+
+    function mark(status) {
+        if(session.queue.length === 0) return;
+        
+        session.history.push({
+            queue: [...session.queue],
+            retake: [...session.retakeQueue],
+            data: JSON.parse(JSON.stringify(session.data)),
+            isRetake: session.isRetakeMode
+        });
+
+        const s = session.queue.shift();
+        const marks = document.getElementById('marks-input').value;
+        session.data[s.roll] = { status, marks: marks || '-', name: s.name };
+        
+        if(status !== 'Present') session.retakeQueue.push(s);
+        
+        document.getElementById('marks-input').value = '';
+        updateUI();
+    }
+
+    function undo() {
+        if(session.history.length === 0) return alert("No more undo!");
+        let last = session.history.pop();
+        session.queue = last.queue;
+        session.retakeQueue = last.retake;
+        session.data = last.data;
+        session.isRetakeMode = last.isRetake;
+        updateUI();
+    }
+
+    function finishSession() {
+        document.getElementById('session-section').style.display = 'none';
+        document.getElementById('capture-area').style.display = 'block';
+        document.getElementById('report-title').innerText = session.topic;
+        const body = document.getElementById('report-body');
+        body.innerHTML = '';
+        for(let roll in session.data) {
+            body.innerHTML += `<tr><td style="border:1px solid #ddd; padding:5px;">${roll}</td><td style="border:1px solid #ddd; padding:5px;">${session.data[roll].name}</td><td style="border:1px solid #ddd; padding:5px;">${session.data[roll].status}</td><td style="border:1px solid #ddd; padding:5px;">${session.data[roll].marks}</td></tr>`;
+        }
+    }
+
+    function downloadPNG() {
+        html2canvas(document.getElementById("capture-area")).then(canvas => {
+            let link = document.createElement("a");
+            link.download = "Item_Report.png";
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+        });
+    }
+</script>
+</body>
+</html>
