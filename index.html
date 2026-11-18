@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arundeepto Printers — Treasury</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+<!-- ═══════════ AUTH SCREEN ═══════════ -->
+<div id="auth-screen" class="auth-screen hidden">
+  <div class="auth-container">
+    <div class="auth-illustration">
+      <div class="auth-logo">৳</div>
+      <h1>Arundeepto Printers</h1>
+      <p class="auth-tagline">Treasury Management</p>
+    </div>
+    <div class="auth-form-side">
+      <div class="auth-card">
+        <div id="auth-error" class="auth-error hidden"></div>
+
+        <div id="login-form">
+          <h2>Welcome back</h2>
+          <p class="sub">Log in to your account</p>
+          <div class="field" style="margin-bottom:14px;">
+            <label>Email</label>
+            <input type="email" id="login-email" placeholder="you@example.com" autocomplete="username">
+          </div>
+          <div class="field" style="margin-bottom:8px;">
+            <label>Password</label>
+            <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter'){doLogin();}">
+          </div>
+          <div style="text-align:right;margin-bottom:20px;">
+            <a onclick="showForgotPasswordForm()" style="font-size:.82rem;color:var(--primary);font-weight:600;cursor:pointer;">Forgot Password?</a>
+          </div>
+          <button class="btn btn-primary btn-full" onclick="doLogin()">Log In</button>
+          <div class="auth-toggle">New subscriber? <a onclick="showRegisterForm()">Register with your Roll</a></div>
+        </div>
+
+        <div id="register-form" class="hidden">
+          <h2>Create your account</h2>
+          <p class="sub">Treasurer must add your name first</p>
+          <div class="field" style="margin-bottom:12px;">
+            <label>Roll Number</label>
+            <input type="number" id="reg-roll" placeholder="e.g. 12">
+          </div>
+          <div class="field" style="margin-bottom:12px;">
+            <label>Email</label>
+            <input type="email" id="reg-email" placeholder="you@example.com">
+          </div>
+          <div class="field" style="margin-bottom:12px;">
+            <label>Password</label>
+            <input type="password" id="reg-password" placeholder="কমপক্ষে ৬ অক্ষর">
+          </div>
+          <div class="field" style="margin-bottom:20px;">
+            <label>Confirm Password</label>
+            <input type="password" id="reg-confirm-password" placeholder="••••••••" onkeydown="if(event.key==='Enter'){doRegister();}">
+          </div>
+          <button class="btn btn-primary btn-full" id="register-btn" onclick="doRegister()">Register</button>
+          <div class="auth-toggle">Already have an account? <a onclick="showLoginForm()">Log in</a></div>
+        </div>
+
+        <div id="forgot-password-form" class="hidden">
+          <h2>Reset your password</h2>
+          <p class="sub">We'll send a reset link to your email</p>
+          <div class="field" style="margin-bottom:20px;">
+            <label>Email</label>
+            <input type="email" id="forgot-email" placeholder="you@example.com" onkeydown="if(event.key==='Enter'){doForgotPassword();}">
+          </div>
+          <button class="btn btn-primary btn-full" id="forgot-btn" onclick="doForgotPassword()">Send Reset Link</button>
+          <div class="auth-toggle">Remembered it? <a onclick="showLoginForm()">Back to Log in</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ PENDING SCREEN ═══════════ -->
+<div id="pending-screen" class="auth-screen hidden">
+  <div class="pending-card">
+    <div class="pending-icon">⏳</div>
+    <h1>অ্যাক্সেসের অপেক্ষায়</h1>
+    <p class="sub">Waiting for Access</p>
+    <p class="pending-text">
+      আপনার অ্যাকাউন্টে (<b id="pending-email">—</b>) এখনো কোনো ভূমিকা দেওয়া হয়নি।
+      Treasurer-এর সাথে যোগাযোগ করুন।
+    </p>
+    <button class="btn btn-outline btn-full" onclick="doLogout()">Log Out</button>
+  </div>
+</div>
+
+<!-- ═══════════ BLOCKED SCREEN (balance ≤ 0) ═══════════ -->
+<div id="blocked-screen" class="auth-screen hidden">
+  <div class="pending-card">
+    <div class="pending-icon" style="background:var(--danger-soft);color:var(--danger);">⚠️</div>
+    <h1>আপনার ব্যালেন্স শেষ</h1>
+    <p class="sub">Balance Exhausted</p>
+    <p class="pending-text" style="text-align:center;">
+      প্রিয় <b id="blocked-name">—</b>,<br>
+      আপনার বর্তমান ব্যালেন্স: <b id="blocked-balance" style="color:var(--danger);">৳0</b><br><br>
+      অর্ডার করতে বা অন্য কিছু দেখতে হলে আগে <b>ট্রেজারারের কাছে টাকা জমা দিন</b>।
+    </p>
+    <div style="background:var(--primary-soft);border-radius:12px;padding:16px;margin:20px 0;text-align:left;">
+      <div style="font-weight:700;margin-bottom:8px;">💰 কিভাবে টাকা জমা দেবেন?</div>
+      <ol style="margin:0;padding-left:20px;font-size:.9rem;line-height:1.7;">
+        <li>Treasurer-এর সাথে দেখা করুন</li>
+        <li>আপনার Roll নম্বর বলুন</li>
+        <li>টাকা জমা দিন — Treasurer এখানে যোগ করবেন</li>
+        <li>যোগ হওয়ার সাথে সাথে এই স্ক্রিন সরে যাবে</li>
+      </ol>
+    </div>
+    <button class="btn btn-outline btn-full" onclick="doLogout()">Log Out</button>
+  </div>
+</div>
+
+<!-- ═══════════ MAIN APP ═══════════ -->
+<div id="app" class="app-shell hidden">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-stamp">৳</div>
+      <div>
+        <div class="brand-name">Arundeepto</div>
+        <div class="brand-sub">Printers</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="current-user-stamp">?</div>
+        <div class="user-info">
+          <div class="user-name" id="current-user-name">—</div>
+          <div class="user-role" id="current-user-role">Treasurer</div>
+        </div>
+      </div>
+      <button class="logout-icon-btn" onclick="doLogout()" title="Log Out">↪</button>
+    </div>
+  </aside>
+
+  <main class="main-area">
+    <header class="topbar">
+      <button class="mobile-menu-btn" id="mobile-menu-btn" onclick="toggleMobileSidebar()">☰</button>
+      <div class="topbar-title" id="page-title">Dashboard</div>
+      <div class="topbar-search" id="topbar-search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="topbar-search-input" placeholder="Search subscribers, sheets...">
+      </div>
+      <div class="topbar-actions">
+        <div class="user-avatar-small" id="topbar-user-stamp">?</div>
+      </div>
+    </header>
+
+    <div class="content-area">
+
+      <!-- ══════ SUBSCRIBER DASHBOARD ══════ -->
+      <div class="role-panel subscriber-only hidden" data-tab="dashboard">
+        <div class="page-header">
+          <div>
+            <h1>Hello, <span id="subscriber-greeting-name">—</span> 👋</h1>
+            <p class="page-sub" id="subscriber-account-sub">—</p>
+          </div>
+        </div>
+        <div class="metric-grid metric-grid-3">
+          <div class="metric-card metric-success">
+            <div class="metric-icon">💵</div>
+            <div class="metric-label">Total Deposited</div>
+            <div class="metric-value num" id="sub-total-collected">৳0</div>
+            <div class="metric-footer">সর্বমোট জমা</div>
+          </div>
+          <div class="metric-card metric-danger">
+            <div class="metric-icon">📉</div>
+            <div class="metric-label">Total Spent</div>
+            <div class="metric-value num" id="sub-total-expense">৳0</div>
+            <div class="metric-footer">মোট খরচ</div>
+          </div>
+          <div class="metric-card metric-primary">
+            <div class="metric-icon">⚖️</div>
+            <div class="metric-label">Current Balance</div>
+            <div class="metric-value num" id="sub-due-credit">৳0</div>
+            <div class="metric-footer">বর্তমান ব্যালেন্স</div>
+          </div>
+        </div>
+        <div class="section-card">
+          <div class="section-header"><h2>💳 Payment History</h2></div>
+          <div class="table-scroll">
+            <table class="modern-table">
+              <thead><tr><th>Date</th><th>Amount</th><th>Added By</th></tr></thead>
+              <tbody id="sub-payment-history"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="section-card">
+          <div class="section-header"><h2>📋 Expense Breakdown</h2></div>
+          <div class="table-scroll">
+            <table class="modern-table">
+              <thead><tr><th>Date</th><th>Purpose</th><th>Amount</th></tr></thead>
+              <tbody id="sub-expense-breakdown"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════ SUBSCRIBER SHEETS ══════ -->
+      <div class="role-panel subscriber-only hidden" data-tab="sheets">
+        <div class="page-header">
+          <div>
+            <h1>📄 Lecture Sheets</h1>
+            <p class="page-sub">Pick your sheets and place an order</p>
+          </div>
+        </div>
+        <div id="order-window-notice" class="alert-banner alert-warning hidden"></div>
+        <div class="toolbar-row">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="sheet-search-input" placeholder="Search sheets..." oninput="renderSheetCatalogSubscriber()">
+          </div>
+        </div>
+        <div id="sheet-select-list" class="product-grid"></div>
+        <div class="checkout-bar">
+          <div class="checkout-info">
+            <div class="checkout-label">Selected: <strong id="sheet-selected-count">0</strong> sheets</div>
+            <div class="checkout-total num" id="sheet-selected-total">৳0.00</div>
+          </div>
+          <button class="btn btn-primary btn-lg" id="confirm-sheet-order-btn" onclick="confirmSheetOrders()">✓ Confirm Order</button>
+        </div>
+        <div class="section-card" style="margin-top:24px;">
+          <div class="section-header"><h2>🛍️ My Orders</h2></div>
+          <div class="table-scroll">
+            <table class="modern-table">
+              <thead><tr><th>Date</th><th>Sheet</th><th>Price</th><th>Batch</th><th>Status</th></tr></thead>
+              <tbody id="my-sheet-orders-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════ GIRLS ADMIN DASHBOARD ══════ -->
+      <div class="role-panel girls-admin-only hidden" data-tab="dashboard">
+        <div class="page-header"><div><h1>👩 Girls' Overview</h1><p class="page-sub">Female subscribers summary & received checklist</p></div></div>
+        <div class="metric-grid">
+          <div class="metric-card metric-primary"><div class="metric-icon">👩</div><div class="metric-label">Female Subscribers</div><div class="metric-value num" id="girls-count">0</div></div>
+          <div class="metric-card metric-success"><div class="metric-icon">💵</div><div class="metric-label">Total Collected</div><div class="metric-value num" id="girls-total-collected">৳0</div></div>
+        </div>
+        <div class="section-card">
+          <div class="section-header"><h2>📥 Received Checklist — Girls' Sheets</h2><p class="section-sub">টিক দিন যারা শিট বুঝে পেয়েছে</p></div>
+          <div class="toolbar-row">
+            <select id="girls-received-date-select" onchange="onGirlsReceivedDateFilterChange()" class="modern-select"></select>
+            <select id="girls-received-sheet-select" onchange="onGirlsReceivedSheetFilterChange()" class="modern-select"></select>
+          </div>
+          <div class="toggle-chip-row">
+            <label class="toggle-chip"><input type="checkbox" id="girls-pending-only-toggle" onchange="onGirlsPendingOnlyToggle()"><span>শুধু pending দেখাও</span></label>
+            <span class="ptr-count" id="girls-pending-count"></span>
+          </div>
+          <div class="table-scroll">
+            <table class="modern-table">
+              <thead><tr><th></th><th>Subscriber</th><th>Received Info</th></tr></thead>
+              <tbody id="girls-received-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════ GIRLS ADMIN PAYMENTS ══════ -->
+      <div class="role-panel girls-admin-only hidden" data-tab="payments">
+        <div class="page-header"><div><h1>💰 Add Payment</h1><p class="page-sub">Female subscribers only</p></div></div>
+        <div class="toolbar-row">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="girls-admin-student-search" placeholder="Search by name or roll..." oninput="filterGirlsAdminStudents()">
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="modern-table">
+            <thead><tr><th>Roll</th><th>Name</th><th>Total Collected</th><th>Add Payment</th></tr></thead>
+            <tbody id="girls-admin-student-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════ GIRLS ADMIN SHEETS ══════ -->
+      <div class="role-panel girls-admin-only hidden" data-tab="sheets">
+        <div class="page-header"><div><h1>📄 My Personal Sheet Orders</h1><p class="page-sub">Order sheets for yourself</p></div></div>
+        <div id="girls-order-window-notice" class="alert-banner alert-warning hidden"></div>
+        <div class="section-card">
+          <div class="section-header"><h2>📚 Sheet Catalog</h2></div>
+          <div id="girls-admin-sheet-select-list" class="sheet-select-list"></div>
+          <div style="margin-top:16px;text-align:right;">
+            <button class="btn btn-primary" id="confirm-girls-order-btn" onclick="confirmGirlsAdminPersonalOrder()">✓ Confirm Personal Order</button>
+          </div>
+        </div>
+        <div class="section-card" style="margin-top:24px;">
+          <div class="section-header"><h2>🛍️ My Orders</h2></div>
+          <div class="table-scroll">
+            <table class="modern-table">
+              <thead><tr><th>Date</th><th>Sheet</th><th>Price</th><th>Batch</th><th>Status</th></tr></thead>
+              <tbody id="girls-admin-my-orders-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════ BOYS ADMIN DASHBOARD ══════ -->
+      <div class="role-panel boys-admin-only hidden" data-tab="dashboard">
+        <div class="page-header"><div><h1>👨 Boys' Overview</h1><p class="page-sub">Male subscribers summary & received checklist</p></div></div>
+        <div class="metric-grid">
+          <div class="metric-card metric-primary"><div class="metric-icon">👨</div><div class="metric-label">Male Subscribers</div><div class="metric-value num" id="boys-count">0</div></div>
+          <div class="metric-card metric-success"><div class="metric-icon">💵</div><div class="metric-label">Total Collected</div><div class="metric-value num" id="boys-total-collected">৳0</div></div>
+        </div>
+        <div class="section-card">
+          <div class="section-header"><h2>📥 Received Checklist — Boys' Sheets</h2><p class="section-sub">টিক দিন যারা শিট বুঝে পেয়েছে</p></div>
+          <div class="toolbar-row">
+            <select id="boys-received-date-select" onchange="onBoysReceivedDateFilterChange()" class="modern-select"></select>
+            <select id="boys-received-sheet-select" onchange="onBoysReceivedSheetFilterChange()" class="modern-select"></select>
+          </div>
+          <div class="toggle-chip-row">
+            <label class="toggle-chip"><input type="checkbox" id="boys-pending-only-toggle" onchange="onBoysPendingOnlyToggle()"><span>শুধু pending দেখাও</span></label>
+            <span class="ptr-count" id="boys-pending-count"></span>
+          </div>
+          <div class="table-scroll">
+            <table class="modern-table">
+              <thead><tr><th></th><th>Subscriber</th><th>Received Info</th></tr></thead>
+              <tbody id="boys-received-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════ BOYS ADMIN PAYMENTS ══════ -->
+      <div class="role-panel boys-admin-only hidden" data-tab="payments">
+        <div class="page-header"><div><h1>💰 Add Payment</h1><p class="page-sub">Male subscribers only</p></div></div>
+        <div class="toolbar-row">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="boys-admin-student-search" placeholder="Search by name or roll..." oninput="filterBoysAdminStudents()">
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="modern-table">
+            <thead><tr><th>Roll</th><th>Name</th><th>Total Collected</th><th>Add Payment</th></tr></thead>
+            <tbody id="boys-admin-student-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════ BOYS ADMIN SHEETS ══════ -->
+      <div class="role-panel boys-admin-only hidden" data-tab="sheets">
+        <div class="page-header"><div><h1>📄 My Personal Sheet Orders</h1><p class="page-sub">Order sheets for yourself</p></div></div>
+        <div id="boys-order-window-notice" class="alert-banner alert-warning hidden"></div>
+        <div class="section-card">
+          <div class="section-header"><h2>📚 Sheet Catalog</h2></div>
+          <div id="boys-admin-sheet-select-list" class="sheet-select-list"></div>
+          <div style="margin-top:16px;text-align:right;">
+            <button class="btn btn-primary" id="confirm-boys-order-btn" onclick="confirmBoysAdminPersonalOrder()">✓ Confirm Personal Order</button>
+          </div>
+        </div>
+        <div class="section-card" style="margin-top:24px;">
+          <div class="section-header"><h2>🛍️ My Orders</h2></div>
+          <div class="table-scroll">
+            <table class="modern-table">
+              <thead><tr><th>Date</th><th>Sheet</th><th>Price</th><th>Batch</th><th>Status</th></tr></thead>
+              <tbody id="boys-admin-my-orders-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════ TREASURER DASHBOARD ══════ -->
+      <div class="role-panel treasurer-only hidden" data-tab="dashboard">
+        <div class="page-header"><div><h1>📊 Dashboard</h1><p class="page-sub">Overview of collections and expenses</p></div></div>
+        <div class="metric-grid">
+          <div class="metric-card metric-success"><div class="metric-icon">💵</div><div class="metric-label">Total Collected</div><div class="metric-value num" id="sum-collection">৳0</div></div>
+          <div class="metric-card metric-danger"><div class="metric-icon">📉</div><div class="metric-label">Total Expense</div><div class="metric-value num" id="sum-expense">৳0</div></div>
+          <div class="metric-card metric-primary"><div class="metric-icon">⚖️</div><div class="metric-label">Current Balance</div><div class="metric-value num" id="sum-balance">৳0</div></div>
+          <div class="metric-card"><div class="metric-icon">📥</div><div class="metric-label">Pending Receives</div><div class="metric-value num" id="dashboard-pending-receive-count">0</div></div>
+        </div>
+        <div class="section-card">
+          <div class="section-header"><h2>👨 Boys' Summary</h2></div>
+          <div class="metric-grid metric-grid-3">
+            <div class="metric-card"><div class="metric-label">Subscribers</div><div class="metric-value num" id="boys-count-admin">0</div></div>
+            <div class="metric-card"><div class="metric-label">Collected</div><div class="metric-value num" id="boys-collected-admin">৳0</div></div>
+            <div class="metric-card"><div class="metric-label">Balance</div><div class="metric-value num" id="boys-balance-admin">৳0</div></div>
+          </div>
+        </div>
+        <div class="section-card">
+          <div class="section-header"><h2>👩 Girls' Summary</h2></div>
+          <div class="metric-grid metric-grid-3">
+            <div class="metric-card"><div class="metric-label">Subscribers</div><div class="metric-value num" id="girls-count-admin">0</div></div>
+            <div class="metric-card"><div class="metric-label">Collected</div><div class="metric-value num" id="girls-collected-admin">৳0</div></div>
+            <div class="metric-card"><div class="metric-label">Balance</div><div class="metric-value num" id="girls-balance-admin">৳0</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════ TREASURER SUBSCRIBERS ══════ -->
+      <div class="role-panel treasurer-only hidden" data-tab="subscribers">
+        <div class="page-header"><div><h1>👥 Subscribers</h1><p class="page-sub">Manage subscribers & payments</p></div></div>
+        <div class="section-card">
+          <div class="section-header"><h2>➕ Add Subscriber</h2></div>
+          <div class="form-row">
+            <div class="field"><label>Name</label><input type="text" id="new-student-name" placeholder="Full name"></div>
+            <div class="field"><label>Roll</label><input type="number" id="new-student-roll" placeholder="Roll number"></div>
+            <div class="field"><label>Mobile</label><input type="text" id="new-student-mobile" placeholder="01XXXXXXXXX"></div>
+            <div class="field"><label>Gender</label>
+              <select id="new-student-gender" class="modern-select"><option value="male">ছেলে</option><option value="female">মেয়ে</option></select>
+            </div>
+            <div class="field"><button class="btn btn-primary" onclick="addStudent()">+ Add</button></div>
+          </div>
+        </div>
+        <div class="toolbar-row">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="student-search" placeholder="Search by name or roll..." oninput="filterStudents()">
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="modern-table">
+            <thead><tr><th>Roll</th><th>Name</th><th>Mobile</th><th>Gender</th><th>Total</th><th>Add Payment</th><th>Balance</th><th></th></tr></thead>
+            <tbody id="student-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════ TREASURER USERS ══════ -->
+      <div class="role-panel treasurer-only hidden" data-tab="users">
+        <div class="page-header"><div><h1>🔑 Login Accounts</h1><p class="page-sub">Create and manage login access</p></div></div>
+        <div class="section-card">
+          <div class="section-header"><h2>➕ New Account</h2></div>
+          <div class="form-row">
+            <div class="field"><label>Name</label><input type="text" id="new-user-name" placeholder="Full name"></div>
+            <div class="field"><label>Email</label><input type="email" id="new-user-email" placeholder="user@example.com"></div>
+            <div class="field"><label>Password</label><input type="password" id="new-user-password" placeholder="Min 6 chars"></div>
+            <div class="field"><label>Role</label>
+              <select id="new-user-role" class="modern-select" onchange="onNewUserRoleChange()">
+                <option value="subscriber">Subscriber</option>
+                <option value="girls_admin">Girls Admin</option>
+                <option value="chele_admin">Boys Admin</option>
+                <option value="treasurer">Treasurer</option>
+              </select>
+            </div>
+            <div class="field" id="new-user-roll-wrap"><label>Subscriber</label><select id="new-user-roll" class="modern-select"></select></div>
+            <div class="field"><button class="btn btn-primary" id="add-user-btn" onclick="addUserAccount()">🔑 Create Account</button></div>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="modern-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Roll</th><th></th></tr></thead>
+            <tbody id="users-list-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══════ TREASURER EXPENSE ══════ -->
+      <div class="role-panel treasurer-only hidden" data-tab="expense">
+        <div class="page-header"><div><h1>🧾 Add Expense</h1><p class="page-sub">Charge a specific subscriber</p></div></div>
+        <div class="section-card">
+          <div class="form-row">
+            <div class="field" style="position:relative;">
+              <label>Subscriber</label>
+              <input type="text" id="expense-subscriber-search" placeholder="Search name or roll..." oninput="filterExpenseSubscriberList(this.value)">
+              <div id="expense-subscriber-dropdown" class="subscriber-dropdown hidden"></div>
+              <div id="expense-selected-chip" class="hidden" style="margin-top:8px;padding:8px 12px;background:var(--primary-soft);border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
+                <span id="expense-selected-name"></span>
+                <button class="icon-btn" onclick="clearExpenseTarget()">✕</button>
+              </div>
+              <div id="expense-selected-empty" class="activity-meta" style="margin-top:8px;">কোনো সাবস্ক্রাইবার বাছাই করা হয়নি</div>
+            </div>
+            <div class="field"><label>Description</label><input type="text" id="expense-desc" placeholder="What was this for?"></div>
+            <div class="field"><label>Amount (৳)</label><input type="number" id="expense-amount" placeholder="0.00" inputmode="decimal"></div>
+            <div class="field"><button class="btn btn-primary" onclick="saveExpense()">💾 Save Charge</button></div>
+          </div>
+        </div>
+        <div class="section-card">
+          <div class="section-header"><h2>🧾 All Expenses</h2></div>
+          <div class="table-scroll">
+            <table class="modern-table">
+              <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Charged To</th><th>Added By</th></tr></thead>
+              <tbody id="expense-list"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════ TREASURER SHEETS ══════ -->
+      <div class="role-panel treasurer-only hidden" data-tab="sheets">
+        <div class="page-header"><div><h1>📄 Sheets & Orders</h1><p class="page-sub">Manage catalog, orders, printing & receiving</p></div></div>
+
+        <div class="section-card">
+          <div class="section-header"><h2>➕ Add / Edit Sheet</h2></div>
+          <div class="form-row">
+            <div class="field"><label>Subject</label><input type="text" id="new-sheet-subject" placeholder="e.g. Physics"></div>
+            <div class="field"><label>Card No.</label><input type="number" id="new-sheet-card" placeholder="Optional"></div>
+            <div class="field"><label>Title</label><input type="text" id="new-sheet-title" placeholder="Sheet title"></div>
+            <div class="field"><label>Pages</label><input type="number" id="new-sheet-pages" placeholder="0" oninput="updateNewSheetPricePreview()"></div>
+            <div class="field"><label>Price (৳) — manual</label><input type="number" id="new-sheet-price" placeholder="0.00" inputmode="decimal"></div>
+            <div class="field"><label>&nbsp;</label><button class="btn btn-primary" id="add-sheet-btn" onclick="addSheet()">+ Add Sheet</button></div>
+            <div class="field"><label>&nbsp;</label><button class="btn btn-outline hidden" id="cancel-sheet-edit-btn" onclick="cancelSheetEdit()">✕ Cancel</button></div>
+          </div>
+          <div class="activity-meta" id="new-sheet-price-suggestion" style="margin-top:8px;"></div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header"><h2>📚 Sheet Catalog</h2></div>
+          <div class="table-scroll">
+            <table class="modern-table">
+              <thead><tr><th>Subject</th><th>Card</th><th>Title</th><th>Pages</th><th>Price</th><th>Added By</th><th></th></tr></thead>
+              <tbody id="sheet-catalog-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header"><h2>⚙️ Order Timing Settings</h2></div>
+          <div class="form-row">
+            <div class="field"><label>Window Start (hour)</label><input type="number" id="cfg-window-start" min="0" max="23"></div>
+            <div class="field"><label>Window End (hour)</label><input type="number" id="cfg-window-end" min="0" max="23"></div>
+            <div class="field"><label>Cutoff (hour)</label><input type="number" id="cfg-cutoff" min="0" max="23"></div>
+            <div class="field"><label>Discount (%)</label><input type="number" id="cfg-discount" min="0" max="100"></div>
+            <div class="field"><label>&nbsp;</label><button class="btn btn-primary" onclick="saveOrderTimingSettings()">💾 Save</button></div>
+          </div>
+          <div class="activity-meta" id="cfg-preview" style="margin-top:8px;"></div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header"><h2>🧾 Batch Orders</h2></div>
+          <div class="toolbar-row">
+            <select id="order-date-select" onchange="onOrderDateFilterChange()" class="modern-select" style="min-width:280px;"></select>
+            <button class="btn btn-outline" onclick="downloadCurrentBatchPDF()">📄 Download PDF</button>
+            <button class="btn btn-primary" id="mark-printed-btn" onclick="markCurrentBatchPrinted()">✓ Mark Printed</button>
+          </div>
+          <div class="table-scroll">
+            <table class="modern-table">
+              <thead><tr><th>Time</th><th>Student</th><th>Gender</th><th>Sheet</th><th>Price</th><th>Status</th></tr></thead>
+              <tbody id="sheet-orders-detail-body"></tbody>
+            </table>
+          </div>
+          <div class="table-scroll" style="margin-top:20px;">
+            <table class="modern-table">
+              <thead><tr><th>Sheet</th><th>Copies</th><th>Names</th><th>Total</th></tr></thead>
+              <tbody id="sheet-orders-grouped-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-header"><h2>📥 Received Checklist (All)</h2></div>
+          <div class="toolbar-row">
+            <select id="received-date-select" onchange="onReceivedDateFilterChange()" class="modern-select"></select>
+            <select id="received-sheet-select" onchange="onReceivedSheetFilterChange()" class="modern-select"></select>
+            <button class="btn btn-outline" onclick="downloadReceiversPDF()">📄 All Receivers PDF</button>
+            <button class="btn btn-outline" onclick="downloadTodayReceiversPDF()">📄 Today's Receivers PDF</button>
+          </div>
+          <div class="toggle-chip-row">
+            <label class="toggle-chip"><input type="checkbox" id="treasurer-pending-only-toggle" onchange="onTreasurerPendingOnlyToggle()"><span>শুধু pending দেখাও</span></label>
+            <span class="ptr-count" id="treasurer-pending-count"></span>
+          </div>
+          <div class="table-scroll">
+            <table class="modern-table">
+              <thead><tr><th></th><th>Subscriber</th><th>Gender</th><th>Received Info</th></tr></thead>
+              <tbody id="order-received-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════ TREASURER ACTIVITY ══════ -->
+      <div class="role-panel treasurer-only hidden" data-tab="activity">
+        <div class="page-header"><div><h1>🕘 Activity</h1><p class="page-sub">Recent actions</p></div></div>
+        <div class="section-card">
+          <div id="activity-feed"></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
