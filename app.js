@@ -113,16 +113,6 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// ───────────────────────── SHEET PRICING (manual) ─────────────────────────
-// প্রাইস এখন ম্যানুয়ালি দিতে হবে; পেজ থেকে শুধু suggestion দেখানো হবে
-function suggestSheetPrice(pages) {
-  const p = Math.max(0, Math.floor(Number(pages) || 0));
-  const duplex = Math.floor(p / 2);
-  const single = p % 2 === 1 ? 1 : 0;
-  return +(duplex * 3 + single * 1.5).toFixed(2);
-}
-
-// ───────────────────────── AUTH UI ─────────────────────────
 function showAuthError(msg) {
   const el = document.getElementById('auth-error');
   if (!el) return;
@@ -137,6 +127,7 @@ function resetAuthErrorStyle() {
   el.style.borderColor = '';
 }
 
+// ───────────────────────── AUTH ─────────────────────────
 window.doLogin = async () => {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
@@ -239,9 +230,9 @@ window.doRegister = async () => {
     if (!studentDoc.exists()) throw new Error(`Roll ${roll} এখনো Treasurer যোগ করেননি।`);
     const student = studentDoc.data();
     const existingSnap = await getDocs(query(collection(db, "users"), where("role", "==", "subscriber")));
-    if (existingSnap.docs.some(d => d.data().roll === roll)) throw new Error(`Roll ${roll} এর জন্য আগে থেকেই একটি অ্যাকাউন্ট রেজিস্টার করা আছে।`);
+    if (existingSnap.docs.some(d => Number(d.data().roll) === roll)) throw new Error(`Roll ${roll} এর জন্য আগে থেকেই একটি অ্যাকাউন্ট রেজিস্টার করা আছে।`);
     await setDoc(doc(db, "users", cred.user.uid), {
-      role: 'subscriber', roll, name: student.name, email, gender: student.gender || null,
+      role: 'subscriber', roll: Number(roll), name: student.name, email, gender: student.gender || null,
       createdAt: serverTimestamp(), addedBy: 'self-registration'
     });
     document.getElementById('reg-roll').value = "";
@@ -257,6 +248,7 @@ window.doRegister = async () => {
   }
 };
 
+// ───────────────────────── LOGGED IN ─────────────────────────
 async function applyLoggedInUser(user) {
   let role = "pending", roll = null, name = user.displayName || user.email;
   let adminGender = null;
@@ -265,11 +257,13 @@ async function applyLoggedInUser(user) {
     if (userDoc.exists()) {
       const data = userDoc.data();
       role = data.role || "pending";
-      roll = data.roll || null;
+      // ⭐ এখানে Number এ কনভার্ট করা হলো, যাতে স্ট্রিং ও নাম্বার এর সমস্যা না হয়
+      roll = data.roll != null ? Number(data.roll) : null; 
       name = data.name || name;
       adminGender = data.gender || (role === 'girls_admin' ? 'female' : (role === 'chele_admin' ? 'male' : null));
     }
   } catch (e) { console.error("Error loading user doc:", e); }
+  
   currentUserRole = role;
   currentSubscriberRoll = roll;
   currentTreasurerName = name;
@@ -277,7 +271,8 @@ async function applyLoggedInUser(user) {
 
   document.getElementById('auth-screen').classList.add('hidden');
   document.getElementById('pending-screen').classList.add('hidden');
-  document.getElementById('blocked-screen').classList.add('hidden');
+  const blockedScreen = document.getElementById('blocked-screen');
+  if (blockedScreen) blockedScreen.classList.add('hidden');
   const appEl = document.getElementById('app');
 
   if (role === 'pending') {
@@ -306,7 +301,8 @@ onAuthStateChanged(auth, (user) => {
     stopListeners();
     document.getElementById('app').classList.add('hidden');
     document.getElementById('pending-screen').classList.add('hidden');
-    document.getElementById('blocked-screen').classList.add('hidden');
+    const blockedScreen = document.getElementById('blocked-screen');
+    if (blockedScreen) blockedScreen.classList.add('hidden');
     document.getElementById('auth-screen').classList.remove('hidden');
     window.showLoginForm();
   }
@@ -398,16 +394,13 @@ window.toggleMobileSidebar = () => {
   if (sb) sb.classList.toggle('open');
 };
 
-// ───────────────────────── SHARE / COLLECTIONS (no equal share, no donation) ─────────────────────────
-// এখন collection amount = জমা করা টাকা (আগের মতোই)
-// খরচ = ব্যক্তিগত খরচ + শিট চার্জ (সমান ভাগ নেই, ডোনেশন adjustment নেই)
-
+// ───────────────────────── CALCULATIONS ─────────────────────────
 function getPersonalCharge(roll) {
   const individualExpenses = expensesData
-    .filter(e => e.chargeType === 'individual' && e.targetRoll === roll)
+    .filter(e => e.chargeType === 'individual' && Number(e.targetRoll) === Number(roll))
     .reduce((a, e) => a + (e.amount || 0), 0);
   const sheetCharges = sheetOrdersData
-    .filter(o => o.roll === roll)
+    .filter(o => Number(o.roll) === Number(roll))
     .reduce((a, o) => a + (o.price || 0), 0);
   return individualExpenses + sheetCharges;
 }
@@ -506,7 +499,7 @@ function startListeners() {
 
   if (isSubscriber) {
     activeUnsubscribes.push(onSnapshot(
-      query(collection(db, "payments"), where("roll", "==", currentSubscriberRoll)),
+      query(collection(db, "payments"), where("roll", "==", Number(currentSubscriberRoll))),
       (snap) => {
         paymentsData = {};
         snap.forEach(d => {
@@ -562,7 +555,7 @@ function startListeners() {
 
   if (isSubscriber) {
     activeUnsubscribes.push(onSnapshot(
-      query(collection(db, "sheetOrders"), where("roll", "==", currentSubscriberRoll)),
+      query(collection(db, "sheetOrders"), where("roll", "==", Number(currentSubscriberRoll))),
       (snap) => {
         sheetOrdersData = [];
         snap.forEach(d => sheetOrdersData.push({ id: d.id, ...d.data() }));
@@ -615,31 +608,106 @@ function recomputeCollections() {
   if (currentUserRole === 'girls_admin') renderGirlsAdminPanel();
   if (currentUserRole === 'chele_admin') renderBoysAdminPanel();
   if (currentUserRole === 'subscriber') {
+    renderSubscriberPanel();
     maybeBlockSubscriber();
   }
 }
 
-// ───────────────────────── SUBSCRIBER BLOCK (balance ≤ 0) ─────────────────────────
+// ───────────────────────── BLOCK CHECK ─────────────────────────
 function maybeBlockSubscriber() {
   if (currentUserRole !== 'subscriber' || !currentSubscriberRoll) return;
   const remaining = getSubscriberRemaining(currentSubscriberRoll);
   const appEl = document.getElementById('app');
   const blocked = document.getElementById('blocked-screen');
+  
   if (remaining <= 0) {
     appEl.classList.add('hidden');
     blocked.classList.remove('hidden');
     const balEl = document.getElementById('blocked-balance');
     if (balEl) balEl.textContent = (remaining >= 0 ? "৳" : "-৳") + Math.abs(remaining).toFixed(2);
     const nameEl = document.getElementById('blocked-name');
-    const s = students.find(x => x.roll === currentSubscriberRoll);
-    if (nameEl && s) nameEl.textContent = s.name;
+    const s = students.find(x => Number(x.roll) === Number(currentSubscriberRoll));
+    if (nameEl) nameEl.textContent = s ? s.name : '—';
   } else {
     blocked.classList.add('hidden');
     appEl.classList.remove('hidden');
+    // ⭐ ডেটা পেলে এখানেই প্যানেল রেন্ডার করে দিচ্ছি
+    renderSubscriberPanel();
   }
 }
 
-// ───────────────────────── STUDENTS ─────────────────────────
+// ───────────────────────── SUBSCRIBER PANEL RENDER ─────────────────────────
+function renderSubscriberPanel() {
+  if (currentUserRole !== 'subscriber' || !currentSubscriberRoll) return;
+  const roll = Number(currentSubscriberRoll);
+  
+  // students অ্যারে থেকে ডেটা খোঁজা
+  const student = students.find(s => Number(s.roll) === roll);
+  
+  const rec = collectionsData[roll] || collectionsData[String(roll)];
+  const amount = rec ? (rec.amount || 0) : 0;
+  const personalCharge = getPersonalCharge(roll);
+  const remaining = amount - personalCharge;
+
+  const greetingEl = document.getElementById('subscriber-greeting-name');
+  if (greetingEl) greetingEl.textContent = student ? student.name : `Roll ${roll}`;
+  
+  const subEl = document.getElementById('subscriber-account-sub');
+  if (subEl) subEl.textContent = student ? `Roll ${student.roll}${student.mobile ? ' · ' + student.mobile : ''}` : `Roll ${roll}`;
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('sub-total-collected', "৳" + amount.toFixed(2));
+  set('sub-total-expense', "৳" + personalCharge.toFixed(2));
+  
+  const dueEl = document.getElementById('sub-due-credit');
+  if (dueEl) {
+    dueEl.textContent = (remaining >= 0 ? "৳" : "-৳") + Math.abs(remaining).toFixed(2);
+    dueEl.style.color = remaining >= 0 ? 'var(--success)' : 'var(--danger)';
+  }
+
+  const pays = (paymentsData[roll] || paymentsData[String(roll)] || []).slice().sort((a, b) => {
+    const ta = a.addedAt && a.addedAt.toDate ? a.addedAt.toDate() : 0;
+    const tb = b.addedAt && b.addedAt.toDate ? b.addedAt.toDate() : 0;
+    return tb - ta;
+  });
+  
+  const hb = document.getElementById('sub-payment-history');
+  if (hb) {
+    hb.innerHTML = pays.map(p => {
+      const t = p.addedAt && p.addedAt.toDate ? p.addedAt.toDate().toLocaleDateString('en-US') : "...";
+      return `<tr><td class="activity-meta">${t}</td><td class="num">৳${(p.amount || 0).toFixed(2)}</td><td class="activity-meta">${escapeHtml(p.addedBy || "")}</td></tr>`;
+    }).join('') || `<tr><td colspan="3" class="activity-meta">এখনো কোনো জমা রেকর্ড করা হয়নি।</td></tr>`;
+  }
+  
+  renderSubscriberExpenseBreakdown();
+}
+
+function renderSubscriberExpenseBreakdown() {
+  const tbody = document.getElementById('sub-expense-breakdown');
+  if (!tbody || currentUserRole !== 'subscriber' || !currentSubscriberRoll) return;
+  const roll = Number(currentSubscriberRoll);
+  
+  const rows = [];
+  expensesData.filter(e => e.chargeType === 'individual' && Number(e.targetRoll) === roll).forEach(e => {
+    rows.push({ time: tsToDate(e.addedAt) || new Date(0), purpose: e.description, tag: 'ব্যক্তিগত খরচ', amount: e.amount || 0 });
+  });
+  
+  sheetOrdersData.filter(o => Number(o.roll) === roll).forEach(o => {
+    rows.push({ time: tsToDate(o.orderedAt) || new Date(0), purpose: `শিট: ${o.sheetTitle}`, tag: 'লেকচার শিট', amount: o.price || 0 });
+  });
+  
+  rows.sort((a, b) => b.time - a.time);
+  
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td class="activity-meta">${r.time.toLocaleDateString('en-US')}</td>
+      <td>${escapeHtml(r.purpose || '—')} <span class="activity-meta">(${r.tag})</span></td>
+      <td class="num balance-neg">৳${r.amount.toFixed(2)}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="3" class="activity-meta">এখনো আপনার হিসাব থেকে কোনো খরচ কাটা হয়নি।</td></tr>`;
+}
+
+// ───────────────────────── STUDENTS RENDER ─────────────────────────
 window.addStudent = async () => {
   const name = document.getElementById('new-student-name').value.trim();
   const roll = parseInt(document.getElementById('new-student-roll').value);
@@ -647,7 +715,7 @@ window.addStudent = async () => {
   const gender = document.getElementById('new-student-gender').value;
   if (!name || !roll) { alert("Please enter both name and roll number."); return; }
   await setDoc(doc(db, "students", roll.toString()), {
-    name, roll, mobile: mobile || "", gender, addedBy: currentTreasurerName, addedAt: serverTimestamp()
+    name, roll: Number(roll), mobile: mobile || "", gender, addedBy: currentTreasurerName, addedAt: serverTimestamp()
   });
   document.getElementById('new-student-name').value = "";
   document.getElementById('new-student-roll').value = "";
@@ -664,7 +732,7 @@ window.deleteStudent = async (roll) => {
   await deleteDoc(doc(db, "students", roll.toString()));
   try { await deleteDoc(doc(db, "collections", roll.toString())); } catch (e) {}
   try {
-    const paySnap = await getDocs(query(collection(db, "payments"), where("roll", "==", roll)));
+    const paySnap = await getDocs(query(collection(db, "payments"), where("roll", "==", Number(roll))));
     await Promise.all(paySnap.docs.map(d => deleteDoc(d.ref)));
   } catch (e) {}
 };
@@ -673,9 +741,9 @@ window.addPayment = async (roll) => {
   const input = document.getElementById(`pay-${roll}`);
   const amt = parseFloat(input ? input.value : "");
   if (!amt || amt <= 0) { alert("সঠিক পরিমাণ লিখুন।"); return; }
-  const student = students.find(s => s.roll === roll);
+  const student = students.find(s => Number(s.roll) === Number(roll));
   try {
-    await addDoc(collection(db, "payments"), { roll, amount: amt, addedBy: currentTreasurerName, addedAt: serverTimestamp() });
+    await addDoc(collection(db, "payments"), { roll: Number(roll), amount: amt, addedBy: currentTreasurerName, addedAt: serverTimestamp() });
     await addDoc(collection(db, "activity"), {
       type: "payment", actor: currentTreasurerName,
       detail: `${student ? student.name : 'Roll ' + roll} (Roll ${roll}) থেকে ৳${amt.toFixed(2)} জমা`,
@@ -723,33 +791,37 @@ function renderStudentRows() {
 
 function renderStudents() {
   students.forEach(s => {
-    const rec = collectionsData[s.roll];
+    const rec = collectionsData[s.roll] || collectionsData[String(s.roll)];
     const amount = rec ? (rec.amount || 0) : 0;
     const totalSpent = getPersonalCharge(s.roll);
     const remaining = amount - totalSpent;
+    
     const totalEl = document.getElementById(`total-${s.roll}`);
     if (totalEl) totalEl.textContent = "৳" + amount.toFixed(2);
+    
     const remEl = document.getElementById(`rem-${s.roll}`);
     if (remEl) {
       remEl.textContent = (remaining >= 0 ? "৳" : "-৳") + Math.abs(remaining).toFixed(2);
       remEl.className = "num " + (remaining > 0 ? "balance-pos" : "balance-neg");
-      remEl.title = `জমা ৳${amount.toFixed(2)} − খরচ ৳${totalSpent.toFixed(2)}`;
     }
   });
 }
 
 function renderSummary() {
-  const totalCollection = students.reduce((a, s) => a + ((collectionsData[s.roll] || {}).amount || 0), 0);
+  const totalCollection = students.reduce((a, s) => a + (((collectionsData[s.roll] || collectionsData[String(s.roll)]) || {}).amount || 0), 0);
   const totalSheetCharges = sheetOrdersData.reduce((a, o) => a + (o.price || 0), 0);
   const totalExpense = expensesData.reduce((a, e) => a + (e.amount || 0), 0) + totalSheetCharges;
   const balance = totalCollection - totalExpense;
+  
   const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setTxt('sum-earning', "৳" + totalCollection.toFixed(2));
   setTxt('sum-collection', "৳" + totalCollection.toFixed(2));
   setTxt('sum-expense', "৳" + totalExpense.toFixed(2));
   setTxt('sum-balance', "৳" + balance.toFixed(2));
+  
   const pending = sheetOrdersData.filter(o => o.printed && !o.received).length;
   setTxt('dashboard-pending-receive-count', String(pending));
+  
   const boys = getGenderTotals('male');
   const girls = getGenderTotals('female');
   setTxt('boys-count-admin', boys.count);
@@ -782,7 +854,7 @@ function renderExpenses() {
   }).join('') || `<tr><td colspan="5" class="activity-meta">No expenses added yet.</td></tr>`;
 }
 
-// ───────────────────────── EXPENSE (individual only) ─────────────────────────
+// ───────────────────────── EXPENSES ─────────────────────────
 window.filterExpenseSubscriberList = (q) => {
   const dd = document.getElementById('expense-subscriber-dropdown');
   if (!dd) return;
@@ -811,9 +883,9 @@ window.filterExpenseSubscriberList = (q) => {
 };
 
 window.selectExpenseTarget = (roll) => {
-  const s = students.find(x => x.roll === roll);
+  const s = students.find(x => Number(x.roll) === Number(roll));
   if (!s) return;
-  expenseSelectedRoll = roll;
+  expenseSelectedRoll = Number(roll);
   const chip = document.getElementById('expense-selected-chip');
   const emptyEl = document.getElementById('expense-selected-empty');
   const nameEl = document.getElementById('expense-selected-name');
@@ -846,14 +918,14 @@ window.saveExpense = async () => {
   const amount = parseFloat(document.getElementById('expense-amount').value);
   if (!desc || !amount || amount <= 0) { alert("Please enter a description and a valid amount."); return; }
   if (!expenseSelectedRoll) { alert("Please select a subscriber to charge."); return; }
-  const student = students.find(s => s.roll === expenseSelectedRoll);
+  const student = students.find(s => Number(s.roll) === Number(expenseSelectedRoll));
   if (!student) { alert("Subscriber not found."); return; }
   const date = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
   try {
     await addDoc(collection(db, "expenses"), {
       description: desc, amount, date,
       addedBy: currentTreasurerName, addedAt: serverTimestamp(),
-      chargeType: 'individual', targetRoll: student.roll, targetName: student.name
+      chargeType: 'individual', targetRoll: Number(student.roll), targetName: student.name
     });
     await addDoc(collection(db, "activity"), {
       type: "expense", actor: currentTreasurerName,
@@ -866,7 +938,7 @@ window.saveExpense = async () => {
   } catch (e) { alert("Could not save charge: " + (e && e.message ? e.message : e)); }
 };
 
-// ───────────────────────── SHEETS ─────────────────────────
+// ───────────────────────── SHEETS RENDER ─────────────────────────
 function getGroupedSheets(list) {
   const FALLBACK = 'General';
   const groups = {};
@@ -915,7 +987,7 @@ function renderSheetCatalogTreasurer() {
 function renderSheetCatalogSubscriber() {
   const box = document.getElementById('sheet-select-list');
   if (!box || currentUserRole !== 'subscriber') return;
-  const myOrderedIds = new Set(sheetOrdersData.filter(o => o.roll === currentSubscriberRoll).map(o => o.sheetId));
+  const myOrderedIds = new Set(sheetOrdersData.filter(o => Number(o.roll) === Number(currentSubscriberRoll)).map(o => o.sheetId));
   const windowOpen = isWithinOrderWindow();
 
   const notice = document.getElementById('order-window-notice');
@@ -992,7 +1064,7 @@ function updateSheetOrderSummary() {
 function renderMySheetOrders() {
   const tbody = document.getElementById('my-sheet-orders-body');
   if (!tbody || currentUserRole !== 'subscriber') return;
-  const mine = sheetOrdersData.filter(o => o.roll === currentSubscriberRoll);
+  const mine = sheetOrdersData.filter(o => Number(o.roll) === Number(currentSubscriberRoll));
   tbody.innerHTML = mine.map(o => {
     const t = o.orderedAt && o.orderedAt.toDate ? o.orderedAt.toDate().toLocaleDateString('en-US') : '...';
     const batch = o.businessDate ? formatBusinessDateLabel(o.businessDate) : '—';
@@ -1005,10 +1077,10 @@ function renderMySheetOrders() {
 }
 
 window.markMyOrderReceived = async (orderId) => {
-  const order = sheetOrdersData.find(o => o.id === orderId && o.roll === currentSubscriberRoll);
+  const order = sheetOrdersData.find(o => o.id === orderId && Number(o.roll) === Number(currentSubscriberRoll));
   if (!order || order.received) return;
   if (!confirm(`আপনি কি "${order.sheetTitle}" বুঝে পেয়েছেন?`)) return;
-  const student = students.find(s => s.roll === currentSubscriberRoll);
+  const student = students.find(s => Number(s.roll) === Number(currentSubscriberRoll));
   try {
     await updateDoc(doc(db, "sheetOrders", orderId), {
       received: true, receivedAt: serverTimestamp(),
@@ -1020,7 +1092,7 @@ window.markMyOrderReceived = async (orderId) => {
 window.confirmSheetOrders = async () => {
   if (currentUserRole !== 'subscriber' || !currentSubscriberRoll) return;
   if (!isWithinOrderWindow()) { alert('⏰ ' + orderWindowMessage()); return; }
-  const alreadyOrderedIds = new Set(sheetOrdersData.filter(o => o.roll === currentSubscriberRoll).map(o => o.sheetId));
+  const alreadyOrderedIds = new Set(sheetOrdersData.filter(o => Number(o.roll) === Number(currentSubscriberRoll)).map(o => o.sheetId));
   const checked = Array.from(document.querySelectorAll('.sheet-check:checked'))
     .map(cb => cb.value).filter(id => !alreadyOrderedIds.has(id));
   if (!checked.length) { alert("No new sheets selected."); return; }
@@ -1030,11 +1102,11 @@ window.confirmSheetOrders = async () => {
   const businessDate = currentBusinessDateKey();
   if (!confirm(`Order ${chosenSheets.length} sheet(s)?\n\n${names}\n\nTotal: ৳${total.toFixed(2)} will be charged.`)) return;
   const user = auth.currentUser;
-  const student = students.find(s => s.roll === currentSubscriberRoll);
+  const student = students.find(s => Number(s.roll) === Number(currentSubscriberRoll));
   const batchSeq = currentBatchSeqFor(businessDate);
   try {
     await Promise.all(chosenSheets.map(s => addDoc(collection(db, "sheetOrders"), {
-      roll: currentSubscriberRoll,
+      roll: Number(currentSubscriberRoll),
       studentName: student ? student.name : currentTreasurerName,
       gender: (student && student.gender) || 'unspecified',
       sheetId: s.id, sheetTitle: s.title,
@@ -1050,6 +1122,7 @@ window.confirmSheetOrders = async () => {
   } catch (e) { alert("Order failed: " + (e && e.message ? e.message : e)); }
 };
 
+// ───────────────────────── TREASURER SHEET ORDERS ─────────────────────────
 function getDistinctBatchKeys() {
   const set = new Set(sheetOrdersData.map(o => orderBatchKey(o)).filter(Boolean));
   return Array.from(set);
@@ -1263,7 +1336,7 @@ window.toggleOrderReceived = async (orderId, checkboxEl) => {
 // ───────────────────────── GIRLS ADMIN ─────────────────────────
 function getGirlsTotals() {
   const list = students.filter(s => s.gender === 'female');
-  const totalCollected = list.reduce((a, s) => a + ((collectionsData[s.roll] || {}).amount || 0), 0);
+  const totalCollected = list.reduce((a, s) => a + (((collectionsData[s.roll] || collectionsData[String(s.roll)]) || {}).amount || 0), 0);
   const adminIncluded = currentUserRole === 'girls_admin' ? 1 : 0;
   return { count: list.length + adminIncluded, totalCollected };
 }
@@ -1277,7 +1350,7 @@ function renderGirlsAdminStudentRows() {
     return;
   }
   tbody.innerHTML = list.map(s => {
-    const amt = (collectionsData[s.roll] || {}).amount || 0;
+    const amt = ((collectionsData[s.roll] || collectionsData[String(s.roll)]) || {}).amount || 0;
     return `
     <tr data-name="${escapeHtml((s.name || '').toLowerCase())}" data-roll="${s.roll}">
       <td class="num">${s.roll}</td>
@@ -1305,14 +1378,14 @@ window.filterGirlsAdminStudents = () => {
 };
 
 window.addPaymentGirlsAdmin = async (roll) => {
-  const student = students.find(s => s.roll === roll);
+  const student = students.find(s => Number(s.roll) === Number(roll));
   if (!student) { alert("Subscriber not found."); return; }
   if (student.gender !== 'female') { alert("Only female subscribers can be charged here."); return; }
   const input = document.getElementById(`girls-pay-${roll}`);
   const amt = parseFloat(input ? input.value : "");
   if (!amt || amt <= 0) { alert("Enter valid amount."); return; }
   try {
-    await addDoc(collection(db, "payments"), { roll, amount: amt, addedBy: currentTreasurerName, addedAt: serverTimestamp() });
+    await addDoc(collection(db, "payments"), { roll: Number(roll), amount: amt, addedBy: currentTreasurerName, addedAt: serverTimestamp() });
     await addDoc(collection(db, "activity"), {
       type: "payment", actor: currentTreasurerName,
       detail: `${student.name} (Roll ${roll}) — ৳${amt.toFixed(2)} added (girls admin)`,
@@ -1436,7 +1509,7 @@ window.onGirlsReceivedSheetFilterChange = () => {
 // ───────────────────────── BOYS ADMIN ─────────────────────────
 function getBoysTotals() {
   const list = students.filter(s => s.gender === 'male');
-  const totalCollected = list.reduce((a, s) => a + ((collectionsData[s.roll] || {}).amount || 0), 0);
+  const totalCollected = list.reduce((a, s) => a + (((collectionsData[s.roll] || collectionsData[String(s.roll)]) || {}).amount || 0), 0);
   const adminIncluded = currentUserRole === 'chele_admin' ? 1 : 0;
   return { count: list.length + adminIncluded, totalCollected };
 }
@@ -1450,7 +1523,7 @@ function renderBoysAdminStudentRows() {
     return;
   }
   tbody.innerHTML = list.map(s => {
-    const amt = (collectionsData[s.roll] || {}).amount || 0;
+    const amt = ((collectionsData[s.roll] || collectionsData[String(s.roll)]) || {}).amount || 0;
     return `
     <tr data-name="${escapeHtml((s.name || '').toLowerCase())}" data-roll="${s.roll}">
       <td class="num">${s.roll}</td>
@@ -1478,14 +1551,14 @@ window.filterBoysAdminStudents = () => {
 };
 
 window.addPaymentBoysAdmin = async (roll) => {
-  const student = students.find(s => s.roll === roll);
+  const student = students.find(s => Number(s.roll) === Number(roll));
   if (!student) { alert("Subscriber not found."); return; }
   if (student.gender !== 'male') { alert("Only male subscribers can be charged here."); return; }
   const input = document.getElementById(`boys-pay-${roll}`);
   const amt = parseFloat(input ? input.value : "");
   if (!amt || amt <= 0) { alert("Enter valid amount."); return; }
   try {
-    await addDoc(collection(db, "payments"), { roll, amount: amt, addedBy: currentTreasurerName, addedAt: serverTimestamp() });
+    await addDoc(collection(db, "payments"), { roll: Number(roll), amount: amt, addedBy: currentTreasurerName, addedAt: serverTimestamp() });
     await addDoc(collection(db, "activity"), {
       type: "payment", actor: currentTreasurerName,
       detail: `${student.name} (Roll ${roll}) — ৳${amt.toFixed(2)} added (boys admin)`,
@@ -1606,13 +1679,16 @@ window.onBoysReceivedSheetFilterChange = () => {
   renderBoysAdminPanel();
 };
 
-// ───────────────────────── SHEET ADD/EDIT (manual price) ─────────────────────────
+// ───────────────────────── ADD/EDIT SHEETS ─────────────────────────
 let editingSheetId = null;
 
 window.updateNewSheetPricePreview = () => {
   const pages = parseInt(document.getElementById('new-sheet-pages').value, 10) || 0;
   const suggestion = document.getElementById('new-sheet-price-suggestion');
-  if (suggestion) suggestion.textContent = pages > 0 ? `সাজেশন: ৳${suggestSheetPrice(pages).toFixed(2)}` : '';
+  if (suggestion) {
+    const suggested = (Math.floor(pages / 2) * 3 + (pages % 2 === 1 ? 1.5 : 0)).toFixed(2);
+    suggestion.textContent = pages > 0 ? `সাজেশন: ৳${suggested}` : '';
+  }
 };
 
 window.cancelSheetEdit = () => {
@@ -1678,7 +1754,7 @@ window.deleteSheet = async (id) => {
   catch (e) { alert("Failed: " + (e && e.message ? e.message : e)); }
 };
 
-// ───────────────────────── ORDER TIMING SETTINGS ─────────────────────────
+// ───────────────────────── ORDER SETTINGS ─────────────────────────
 function renderOrderTimingSettingsForm() {
   const s = document.getElementById('cfg-window-start');
   const e = document.getElementById('cfg-window-end');
@@ -1748,7 +1824,7 @@ window.addUserAccount = async () => {
   if (!name || !email || !password) { alert("Fill all fields."); return; }
   if (password.length < 6) { alert("Password must be 6+ characters."); return; }
   if (role === 'subscriber' && !roll) { alert("Select subscriber."); return; }
-  if (role === 'subscriber' && usersData.some(u => u.role === 'subscriber' && u.roll === roll)) {
+  if (role === 'subscriber' && usersData.some(u => u.role === 'subscriber' && Number(u.roll) === roll)) {
     alert("Account already exists for this subscriber."); return;
   }
   const btn = document.getElementById('add-user-btn');
@@ -1839,7 +1915,7 @@ window.loadActivity = async () => {
   } catch (e) { feed.innerHTML = `<div class="activity-meta">Failed to load activity.</div>`; }
 };
 
-// ───────────────────────── PDF EXPORT ─────────────────────────
+// ───────────────────────── PDF ─────────────────────────
 window.downloadOrdersPDF = (batchKey) => {
   if (!batchKey) return;
   const { businessDate, seq } = parseBatchKey(batchKey);
@@ -1960,4 +2036,4 @@ window.downloadTodayReceiversPDF = () => {
   buildReceiversPDF(todays, `Sheet Receivers — ${formatBusinessDateLabel(todayKey)}`, `${todayKey}_${Date.now()}`);
 };
 
-console.log('[Arundeepto App] Loaded successfully ✅');
+console.log('[Arundeepto App] Fixed and Loaded successfully ✅');
