@@ -406,7 +406,7 @@ function getPersonalCharge(roll) {
 }
 
 function getSubscriberRemaining(roll) {
-  const rec = collectionsData[roll];
+  const rec = collectionsData[roll] || collectionsData[String(roll)];
   const totalDeposited = rec ? (rec.amount || 0) : 0;
   const totalSpent = getPersonalCharge(roll);
   return totalDeposited - totalSpent;
@@ -414,7 +414,7 @@ function getSubscriberRemaining(roll) {
 
 function getGenderTotals(gender) {
   const list = students.filter(s => s.gender === gender);
-  const totalCollected = list.reduce((a, s) => a + ((collectionsData[s.roll] || {}).amount || 0), 0);
+  const totalCollected = list.reduce((a, s) => a + ((collectionsData[s.roll] || collectionsData[String(s.roll)] || {}).amount || 0), 0);
   const totalBalance = list.reduce((a, s) => a + getSubscriberRemaining(s.roll), 0);
   return { count: list.length, totalCollected, totalBalance };
 }
@@ -1050,15 +1050,48 @@ window.onSheetCheckChange = (cb) => {
   updateSheetOrderSummary();
 };
 
+// ⭐ এখানে ব্যালেন্স চেক করার লজিক যোগ করা হলো
 function updateSheetOrderSummary() {
   const countEl = document.getElementById('sheet-selected-count');
   const totalEl = document.getElementById('sheet-selected-total');
-  if (!countEl || !totalEl) return;
+  const confirmBtn = document.getElementById('confirm-sheet-order-btn');
+  
+  if (!countEl || !totalEl || !confirmBtn) return;
+  
   const checkedIds = Array.from(document.querySelectorAll('.sheet-check:checked:not(:disabled)')).map(cb => cb.value);
   const chosen = sheetsData.filter(s => checkedIds.includes(s.id));
   const total = chosen.reduce((a, s) => a + discountedPrice(s.price || 0), 0);
+  
   countEl.textContent = String(chosen.length);
   totalEl.textContent = '৳' + total.toFixed(2);
+
+  if (currentUserRole === 'subscriber' && currentSubscriberRoll) {
+    const balance = getSubscriberRemaining(currentSubscriberRoll);
+    
+    if (total > balance) {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "❌ টাকা অপর্যাপ্ত";
+      confirmBtn.style.background = "var(--danger)";
+      
+      let warningEl = document.getElementById('order-balance-warning');
+      if (!warningEl) {
+        warningEl = document.createElement('div');
+        warningEl.id = 'order-balance-warning';
+        warningEl.style.cssText = "color:var(--danger);font-size:0.9rem;font-weight:600;margin-top:8px;";
+        totalEl.parentElement.appendChild(warningEl);
+      }
+      warningEl.innerHTML = `⚠️ আপনার ব্যালেন্স: ৳${balance.toFixed(2)}। অর্ডার করতে আরও ৳${(total - balance).toFixed(2)} প্রয়োজন।`;
+    } else {
+      if (isWithinOrderWindow()) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "✓ Confirm Order";
+        confirmBtn.style.background = ""; 
+      }
+      
+      const warningEl = document.getElementById('order-balance-warning');
+      if (warningEl) warningEl.innerHTML = '';
+    }
+  }
 }
 
 function renderMySheetOrders() {
@@ -1089,15 +1122,25 @@ window.markMyOrderReceived = async (orderId) => {
   } catch (e) { alert("Update failed: " + (e && e.message ? e.message : e)); }
 };
 
+// ⭐ এখানে ফাইনাল চেক করা হলো
 window.confirmSheetOrders = async () => {
   if (currentUserRole !== 'subscriber' || !currentSubscriberRoll) return;
   if (!isWithinOrderWindow()) { alert('⏰ ' + orderWindowMessage()); return; }
+  
   const alreadyOrderedIds = new Set(sheetOrdersData.filter(o => Number(o.roll) === Number(currentSubscriberRoll)).map(o => o.sheetId));
   const checked = Array.from(document.querySelectorAll('.sheet-check:checked'))
     .map(cb => cb.value).filter(id => !alreadyOrderedIds.has(id));
   if (!checked.length) { alert("No new sheets selected."); return; }
+  
   const chosenSheets = sheetsData.filter(s => checked.includes(s.id));
   const total = chosenSheets.reduce((a, s) => a + discountedPrice(s.price || 0), 0);
+  
+  const currentBalance = getSubscriberRemaining(currentSubscriberRoll);
+  if (total > currentBalance) {
+    alert(`❌ আপনার অ্যাকাউন্টে পর্যাপ্ত ব্যালেন্স নেই।\n\nআপনার ব্যালেন্স: ৳${currentBalance.toFixed(2)}\nপ্রয়োজন: ৳${total.toFixed(2)}\n\nঅনুগ্রহ করে ট্রেজারারের কাছে টাকা জমা দিন।`);
+    return; 
+  }
+
   const names = chosenSheets.map(s => s.title).join(', ');
   const businessDate = currentBusinessDateKey();
   if (!confirm(`Order ${chosenSheets.length} sheet(s)?\n\n${names}\n\nTotal: ৳${total.toFixed(2)} will be charged.`)) return;
