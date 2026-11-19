@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Restore Data — Arundeepto</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #F1F5F9;
+    color: #0F172A;
+    padding: 24px 16px;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; }
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 4px 24px rgba(15,23,42,0.08);
+    margin-bottom: 20px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 6px; }
+  h2 { font-size: 1.1rem; margin-bottom: 16px; color: #1E293B; }
+  .sub { color: #64748B; font-size: .9rem; margin-bottom: 20px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .row.full { grid-template-columns: 1fr; }
+  .field label {
+    display: block; font-size: .82rem; font-weight: 600;
+    color: #475569; margin-bottom: 6px;
+  }
+  .field input, .field select {
+    width: 100%; padding: 10px 12px; font-size: .95rem;
+    border: 2px solid #CBD5E1; border-radius: 8px;
+    background: #fff; color: #0F172A; outline: none;
+    transition: border-color .15s;
+  }
+  .field input:focus, .field select:focus { border-color: #2563EB; }
+  .field input.danger { border-color: #FCA5A5; }
+  .field input.danger:focus { border-color: #DC2626; }
+  .hint { font-size: .75rem; color: #94A3B8; margin-top: 4px; }
+  .btn {
+    padding: 12px 20px; font-size: .95rem; font-weight: 700;
+    border: none; border-radius: 10px; cursor: pointer;
+    transition: opacity .15s, transform .05s;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn-primary { background: #2563EB; color: #fff; }
+  .btn-primary:hover { opacity: .9; }
+  .btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-outline { background: #fff; color: #2563EB; border: 2px solid #2563EB; }
+  .btn-danger { background: #DC2626; color: #fff; }
+  .btn-row { display: flex; gap: 10px; margin-top: 8px; }
+  .alert {
+    padding: 12px 16px; border-radius: 10px; font-size: .88rem;
+    margin-bottom: 16px; display: none;
+  }
+  .alert.show { display: block; }
+  .alert-success { background: #D1FAE5; color: #065F46; border: 1px solid #A7F3D0; }
+  .alert-error { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; }
+  .alert-info { background: #DBEAFE; color: #1E40AF; border: 1px solid #BFDBFE; }
+  .balance-preview {
+    background: #F8FAFC; border-radius: 10px;
+    padding: 14px 16px; margin-top: 10px;
+    font-size: .9rem;
+  }
+  .balance-preview .val { font-weight: 800; font-size: 1.1rem; }
+  .val.pos { color: #059669; }
+  .val.neg { color: #DC2626; }
+  .log {
+    max-height: 300px; overflow-y: auto;
+    background: #0F172A; color: #E2E8F0;
+    border-radius: 10px; padding: 14px;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: .78rem; line-height: 1.6;
+  }
+  .log .ok { color: #4ADE80; }
+  .log .err { color: #F87171; }
+  .log .info { color: #60A5FA; }
+  .existing-list { margin-top: 12px; max-height: 260px; overflow-y: auto; }
+  .existing-row {
+    display: flex; justify-content: space-between;
+    padding: 8px 12px; border-bottom: 1px solid #E2E8F0;
+    font-size: .88rem;
+  }
+  .existing-row:last-child { border-bottom: none; }
+  .existing-row .roll { font-weight: 700; color: #2563EB; }
+  @media (max-width: 600px) {
+    .row { grid-template-columns: 1fr; }
+    .card { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="card">
+    <h1>🔄 Restore Data — Arundeepto</h1>
+    <p class="sub">ছাত্রের তথ্য + জমার টাকা + ঋণাত্মক ব্যালেন্স একসাথে যোগ করুন</p>
+    <div id="auth-status" class="alert alert-info show">🔐 Checking login…</div>
+  </div>
+
+  <!-- Section 1: Add Student -->
+  <div class="card">
+    <h2>১. ছাত্রের তথ্য + টাকা যোগ করুন</h2>
+    <div id="msg" class="alert"></div>
+
+    <div class="row">
+      <div class="field">
+        <label>নাম *</label>
+        <input type="text" id="f-name" placeholder="যেমন: করিম আহমেদ">
+      </div>
+      <div class="field">
+        <label>রোল নম্বর *</label>
+        <input type="number" id="f-roll" placeholder="যেমন: 12">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>মোবাইল (ঐচ্ছিক)</label>
+        <input type="text" id="f-mobile" placeholder="017XXXXXXXX">
+      </div>
+      <div class="field">
+        <label>জেন্ডার *</label>
+        <select id="f-gender">
+          <option value="male">ছেলে</option>
+          <option value="female">মেয়ে</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row full">
+      <div class="field">
+        <label>জমার টাকা (৳) — ঐচ্ছিক</label>
+        <input type="number" id="f-amount" placeholder="0" step="0.01" inputmode="decimal">
+        <div class="hint">ছাত্র যদি আগে টাকা জমা দিয়ে থাকে, এখানে লিখুন। না দিলে খালি রাখুন বা 0 দিন।</div>
+      </div>
+    </div>
+
+    <div class="row full">
+      <div class="field">
+        <label>ঋণাত্মক ব্যালেন্স (৳) — ঐচ্ছিক</label>
+        <input type="number" id="f-debt" placeholder="0" step="0.01" inputmode="decimal" class="danger">
+        <div class="hint">
+          যদি ছাত্রের ব্যালেন্স মাইনাস হয় (অর্থাৎ খরচ বেশি হয়েছে, জমা কম), তাহলে এখানে সেই পরিমাণ লিখুন।
+          এটা "ব্যক্তিগত খরচ" হিসেবে <code>expenses</code> collection-এ যোগ হবে।
+        </div>
+      </div>
+    </div>
+
+    <div class="balance-preview">
+      প্রিভিউ:
+      <span id="preview-text">নাম ও রোল দিন</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-save" onclick="saveRecord()">💾 যোগ করুন</button>
+      <button class="btn btn-outline" onclick="clearForm()">✕ ক্লিয়ার</button>
+    </div>
+  </div>
+
+  <!-- Section 2: Existing students -->
+  <div class="card">
+    <h2>২. বর্তমানে যেসব ছাত্র আছে</h2>
+    <div class="sub">নতুন যোগ করার আগে চেক করে নিন — ডুপ্লিকেট রোল থাকলে স্কিপ হবে।</div>
+    <div id="existing-list" class="existing-list">
+      <div class="sub">লোড হচ্ছে…</div>
+    </div>
+  </div>
+
+  <!-- Section 3: Log -->
+  <div class="card">
+    <h2>৩. লগ</h2>
+    <div id="log" class="log">অপেক্ষা করছে…</div>
+  </div>
+
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, doc, setDoc, addDoc, collection, serverTimestamp, getDoc, getDocs, query, orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCuT_E8UUdBmftYGcVa7nxww6fUE1WBuak",
+  authDomain: "tree-d26aa.firebaseapp.com",
+  projectId: "tree-d26aa",
+  storageBucket: "tree-d26aa.firebasestorage.app",
+  messagingSenderId: "222720179431",
+  appId: "1:222720179431:web:e86835cdc1b950e8a07642"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const authStatus = document.getElementById('auth-status');
+const msgEl = document.getElementById('msg');
+const logEl = document.getElementById('log');
+
+let currentUserName = "Restore Tool";
+
+function log(text, cls = "info") {
+  const line = document.createElement('div');
+  line.className = cls;
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function showMsg(text, type = 'info') {
+  msgEl.className = `alert alert-${type} show`;
+  msgEl.textContent = text;
+  if (type === 'success') setTimeout(() => msgEl.classList.remove('show'), 5000);
+}
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    authStatus.className = 'alert alert-error show';
+    authStatus.innerHTML = '❌ আপনি লগইন করেননি। প্রথমে <a href="index.html" style="color:#991B1B;font-weight:700;">মূল অ্যাপে লগইন</a> করুন (ট্রেজারার হিসেবে), তারপর এই পেজ রিফ্রেশ করুন।';
+    log("লগইন নেই — অপারেশন বন্ধ", "err");
+    return;
+  }
+  try {
+    const u = await getDoc(doc(db, "users", user.uid));
+    if (u.exists() && u.data().role === 'treasurer') {
+      currentUserName = u.data().name || "Treasurer";
+      authStatus.className = 'alert alert-success show';
+      authStatus.textContent = `✅ লগইন হয়েছে: ${currentUserName} (ট্রেজারার)`;
+      log(`লগইন সফল — ${currentUserName}`, "ok");
+      loadExisting();
+    } else {
+      authStatus.className = 'alert alert-error show';
+      authStatus.textContent = '❌ এই অ্যাকাউন্ট ট্রেজারার নয়। শুধু ট্রেজারার এই টুল ব্যবহার করতে পারবেন।';
+      log("রোল চেক ফেল — ট্রেজারার নয়", "err");
+    }
+  } catch (e) {
+    authStatus.className = 'alert alert-error show';
+    authStatus.textContent = '❌ ইউজার ডকুমেন্ট লোড করা যায়নি: ' + e.message;
+    log(e.message, "err");
+  }
+});
+
+// Live preview
+function updatePreview() {
+  const name = document.getElementById('f-name').value.trim();
+  const roll = document.getElementById('f-roll').value.trim();
+  const amount = parseFloat(document.getElementById('f-amount').value) || 0;
+  const debt = parseFloat(document.getElementById('f-debt').value) || 0;
+  const preview = document.getElementById('preview-text');
+  if (!name || !roll) { preview.textContent = 'নাম ও রোল দিন'; return; }
+  const balance = amount - debt;
+  const cls = balance >= 0 ? 'pos' : 'neg';
+  preview.innerHTML = `
+    <b>${escapeHtml(name)}</b> (Roll ${escapeHtml(roll)}) —
+    জমা ৳${amount.toFixed(2)}, ঋণাত্মক খরচ ৳${debt.toFixed(2)}
+    → ব্যালেন্স: <span class="val ${cls}">${balance >= 0 ? '৳' : '-৳'}${Math.abs(balance).toFixed(2)}</span>
+  `;
+}
+['f-name','f-roll','f-amount','f-debt'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updatePreview);
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function clearForm() {
+  ['f-name','f-roll','f-mobile','f-amount','f-debt'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-gender').value = 'male';
+  updatePreview();
+  msgEl.classList.remove('show');
+}
+
+async function saveRecord() {
+  const btn = document.getElementById('btn-save');
+  const name = document.getElementById('f-name').value.trim();
+  const roll = parseInt(document.getElementById('f-roll').value, 10);
+  const mobile = document.getElementById('f-mobile').value.trim();
+  const gender = document.getElementById('f-gender').value;
+  const amount = parseFloat(document.getElementById('f-amount').value) || 0;
+  const debt = parseFloat(document.getElementById('f-debt').value) || 0;
+
+  if (!name) return showMsg("❌ নাম দিন।", "error");
+  if (!roll || roll <= 0) return showMsg("❌ সঠিক রোল নম্বর দিন।", "error");
+  if (amount < 0) return showMsg("❌ জমার টাকা ঋণাত্মক হতে পারে না। ঋণাত্মক ব্যালেন্সের জন্য নিচের ঘর ব্যবহার করুন।", "error");
+  if (debt < 0) return showMsg("❌ ঋণাত্মক ব্যালেন্স ঘরে পজিটিভ সংখ্যা দিন।", "error");
+
+  btn.disabled = true;
+  btn.textContent = "⏳ সেভ হচ্ছে…";
+
+  try {
+    // 1. Check if student already exists
+    const existing = await getDoc(doc(db, "students", String(roll)));
+    if (existing.exists()) {
+      const data = existing.data();
+      log(`Roll ${roll} আগে থেকেই আছে (${data.name}) — স্কিপ`, "info");
+      showMsg(`⚠️ Roll ${roll} আগে থেকেই আছে (${data.name})। ডুপ্লিকেট এড়াতে স্কিপ করা হলো।`, "info");
+      btn.disabled = false;
+      btn.textContent = "💾 যোগ করুন";
+      return;
+    }
+
+    // 2. Add student
+    await setDoc(doc(db, "students", String(roll)), {
+      name, roll, mobile: mobile || "", gender,
+      addedBy: currentUserName,
+      addedAt: serverTimestamp()
+    });
+    log(`✓ students/${roll} তৈরি (${name})`, "ok");
+
+    // 3. Add payment (if amount > 0)
+    if (amount > 0) {
+      await addDoc(collection(db, "payments"), {
+        roll, amount,
+        addedBy: currentUserName,
+        addedAt: serverTimestamp()
+      });
+      log(`✓ payments-এ ৳${amount.toFixed(2)} যোগ (Roll ${roll})`, "ok");
+    }
+
+    // 4. Add debt as individual expense (if debt > 0)
+    if (debt > 0) {
+      const today = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+      await addDoc(collection(db, "expenses"), {
+        description: "পুরনো ব্যালেন্স সমন্বয় (ডেটা রিস্টোর)",
+        amount: debt,
+        date: today,
+        addedBy: currentUserName,
+        addedAt: serverTimestamp(),
+        chargeType: 'individual',
+        targetRoll: roll,
+        targetName: name
+      });
+      log(`✓ expenses-এ ৳${debt.toFixed(2)} ঋণাত্মক খরচ যোগ (Roll ${roll})`, "ok");
+    }
+
+    // 5. Activity log
+    await addDoc(collection(db, "activity"), {
+      type: "payment", actor: currentUserName,
+      detail: `${name} (Roll ${roll}) — restore: জমা ৳${amount.toFixed(2)}, ঋণাত্মক ৳${debt.toFixed(2)}`,
+      amount: amount - debt,
+      createdAt: serverTimestamp()
+    });
+
+    showMsg(`✅ ${name} (Roll ${roll}) সফলভাবে যোগ হয়েছে!`, "success");
+    clearForm();
+    loadExisting();
+  } catch (e) {
+    log(`✗ এরর: ${e.message}`, "err");
+    showMsg(`❌ সেভ করা যায়নি: ${e.message}`, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "💾 যোগ করুন";
+  }
+}
+
+async function loadExisting() {
+  const list = document.getElementById('existing-list');
+  try {
+    const snap = await getDocs(query(collection(db, "students"), orderBy("roll")));
+    if (snap.empty) {
+      list.innerHTML = '<div class="sub">এখনো কোনো ছাত্র নেই।</div>';
+      return;
+    }
+    const rows = [];
+    snap.forEach(d => {
+      const s = d.data();
+      rows.push(`<div class="existing-row">
+        <span class="roll">${s.roll}</span>
+        <span>${escapeHtml(s.name || '')}</span>
+        <span style="color:#64748B;font-size:.8rem;">${s.gender === 'female' ? 'মেয়ে' : 'ছেলে'}</span>
+      </div>`);
+    });
+    list.innerHTML = rows.join('');
+    log(`মোট ${snap.size} জন ছাত্র আছে`, "info");
+  } catch (e) {
+    list.innerHTML = `<div class="sub" style="color:#DC2626;">লোড করা যায়নি: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+window.saveRecord = saveRecord;
+window.clearForm = clearForm;
+</script>
+</body>
+</html>
